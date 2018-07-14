@@ -15,10 +15,11 @@ private:
     int src;
     int dst;
     int hops;
+    bool route_left;
     M msg;
     MM() {}
     MM(int src, int dst, M msg) :
-      src(src), dst(dst), hops(0), msg(msg) {}
+      src(src), dst(dst), hops(0), route_left(false), msg(msg) {}
     friend std::ostream &operator<<(std::ostream &out, const MM &mm) {
       out << "(" << "src=" << mm.src
 	  << ",dst=" << mm.dst
@@ -49,9 +50,6 @@ private:
   }
   
   bool route_msg(const MM &msg_) {
-    int left_dist = router_id - msg_.dst;
-    int right_dist = router_id - (msg_.dst + n_routers);
-
 #if 0
     std::cout << "router " << router_id << " : out"
 	      << output_ports[0]->get_id() << " "
@@ -66,12 +64,6 @@ private:
 	      << "\n";
 #endif
     
-    if(left_dist < 0) {
-      left_dist = -left_dist;
-    }
-    if(right_dist < 0) {
-      right_dist = -right_dist;
-    }
     if(msg_.dst == router_id) {
       if(not(cpu_output->full())) {
 	auto msg  = msg_; msg.hops++;
@@ -83,13 +75,11 @@ private:
 	std::cout << "router " << router_id << " failed to push to cpu output queue\n";
       }
     }
-#if 0
-    else if(right_dist < left_dist) {
+    else if(not(msg_.route_left)) {
       if(accept_from_right_port(msg_)) {
 	return true;
       }
     }
-#endif
     else {
       if(accept_from_left_port(msg_)) {
 	return true;
@@ -140,6 +130,17 @@ public:
     else {
       if(not(cpu_output->full())) {
 	  MM msg_(router_id, dst, msg);
+	  int left_dist = router_id - msg_.dst;
+	  int right_dist = router_id - (msg_.dst + n_routers);
+
+	  if(left_dist < 0) {
+	    left_dist = -left_dist;
+	  }
+	  if(right_dist < 0) {
+	    right_dist = -right_dist;
+	  }
+	  msg_.route_left = left_dist < right_dist;
+	  
 	  cpu_output->push(msg_);
 	  return true;
       }

@@ -22,19 +22,26 @@
 #include "router.hh"
 
 typedef router<int> ROUTER_T;
-static const uint32_t n_routers = 32;
+static const uint32_t n_routers = 512;
 
 bool terminate_simulation = false;
 
-int sent_messages = -1;
+int sent_messages = -1, streak = 0;
 static uint64_t clock_cycle = 0;
 extern "C" {
   void step_clock(void *arg) {
-    while(clock_cycle < (1<<25)) {
+    while(not(terminate_simulation)) {
       clock_cycle++;
-      //if(sent_messages == 0) {
-      //terminate_simulation = true;
-      // }
+      if(sent_messages == 0) {
+	streak++;
+      }
+      else {
+	streak = 0;
+      }
+      if(streak > n_routers) {
+	std::cout << "streak of " << streak << " cycles without progres\n";
+	terminate_simulation = true;
+      }
       sent_messages = 0;
       gthread_yield();
     }
@@ -49,7 +56,7 @@ extern "C" {
    while(not(terminate_simulation)) {
      router->tick();
      
-     if(n_msgs < (1<<20)) {
+     if(n_msgs < (1<<30)) {
        int id = 0;
        do {
 	 id = rand()%n_routers;
@@ -64,7 +71,8 @@ extern "C" {
 
      gthread_yield();
    }
-   std::cout << "(termination) router " << r_id << ": n_msgs = " << n_msgs << "\n";
+   std::cout << "(termination) router " << r_id << ": n_msgs = "
+	     << n_msgs << " @ " << clock_cycle << "\n";
    gthread_terminate();
   }
 };
