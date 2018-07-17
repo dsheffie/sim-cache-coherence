@@ -110,7 +110,7 @@ public:
   int get_id() const {
     return router_id;
   }
-  void hookup(router *prev, router *next) {
+  void hookup_ring(router *prev, router *next) {
     std::cout << "router " << router_id
 	      << " has left router id of "<< prev->router_id
 	      << " and right router id of " << next->router_id
