@@ -1,6 +1,6 @@
 UNAME_S = $(shell uname -s)
 
-OBJ = main.o gthread.o
+OBJ = main.o cache_controller.o gthread.o
 
 ifeq ($(UNAME_S),Linux)
 	CXX = clang++-4.0

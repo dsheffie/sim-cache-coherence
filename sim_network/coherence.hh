@@ -6,6 +6,7 @@
 #include <cstring>
 
 static const int cl_len = 16;
+static const int lg2_num_lines = 4;
 
 #define ENUM_LIST_ENTRY(X) X,
 
@@ -46,7 +47,7 @@ enum class response_message_type {RESPONSE_MESSAGE_LIST(ENUM_LIST_ENTRY)};
   X(SI_A)					\
   X(II_A)
 
-#define DS_STATE_LIST(X)			\
+#define DC_STATE_LIST(X)			\
   X(I)						\
   X(S)						\
   X(M)						\
@@ -55,24 +56,26 @@ enum class response_message_type {RESPONSE_MESSAGE_LIST(ENUM_LIST_ENTRY)};
 
 
 enum class cc_state {CC_STATE_LIST(ENUM_LIST_ENTRY)};
-enum class ds_state {DS_STATE_LIST(ENUM_LIST_ENTRY)};
+enum class dc_state {DC_STATE_LIST(ENUM_LIST_ENTRY)};
 
 struct request_message {
   request_message_type msg_type;
+  int reply_to;
   uint32_t addr;
   request_message() :
-    msg_type(request_message_type::Dummy), addr(0) {}
-  request_message(request_message_type msg_type, uint32_t addr=0) :
-    msg_type(msg_type),addr(addr) {}
+    msg_type(request_message_type::Dummy), reply_to(-1), addr(0) {}
+  request_message(request_message_type msg_type, int reply_to, uint32_t addr=0) :
+    msg_type(msg_type),reply_to(reply_to), addr(addr) {}
 };
 
 struct forward_message {
   forward_message_type msg_type;
   int reply_to;
+  uint32_t addr;
   forward_message() :
-    msg_type(forward_message_type::Dummy), reply_to(-1) {}
-  forward_message(forward_message_type msg_type, int reply_to) :
-    msg_type(msg_type), reply_to(reply_to) {}
+    msg_type(forward_message_type::Dummy), reply_to(-1), addr(0) {}
+  forward_message(forward_message_type msg_type, int reply_to, uint32_t addr) :
+    msg_type(msg_type), reply_to(reply_to), addr(addr) {}
 };
 
 struct response_message {
@@ -92,7 +95,7 @@ struct response_message {
 
 #undef ENUM_LIST_ENTRY
 
-#undef DS_STATE_LIST
+#undef DC_STATE_LIST
 #undef CC_STATE_LIST
 #undef REQUEST_MESSAGE_LIST
 #undef FORWARD_MESSAGE_LIST

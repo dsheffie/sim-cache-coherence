@@ -21,7 +21,7 @@
 #include "gthread.hh"
 #include "router.hh"
 #include "coherence.hh"
-
+#include "cache_controller.hh"
 
 typedef router<request_message> request_router_t;
 typedef router<forward_message> forward_router_t;
@@ -60,7 +60,7 @@ extern "C" {
       else {
 	streak = 0;
       }
-      if(streak > n_routers) {
+      if(streak > (8*n_routers)) {
 	std::cout << "streak of " << streak << " cycles without progres\n";
 	terminate_simulation = true;
       }
@@ -69,6 +69,14 @@ extern "C" {
     }
     terminate_simulation = true;
     gthread_terminate();
+  }
+  void step_cc(void *arg) {
+    cache_controller *cc = reinterpret_cast<cache_controller*>(arg);
+    cc->step();
+  }
+  void step_dc(void *arg) {
+    directory_controller *dc = reinterpret_cast<directory_controller*>(arg);
+    dc->step();
   }
 
   void step_request_router(void *arg) {
@@ -86,21 +94,34 @@ extern "C" {
 
 
 int main(int argc, char *argv[]) {
+  srand(3);
   request_router_t **req_routers = new request_router_t*[n_routers];
   forward_router_t **fwd_routers = new forward_router_t*[n_routers];
   response_router_t **rsp_routers = new response_router_t*[n_routers];
+  
+  controller **controllers = new controller*[n_routers];
+  for(uint32_t i = 0; i < (n_routers-1); i++) {
+    controllers[i] = new cache_controller(terminate_simulation, i, n_routers-1);
+  }
+  controllers[n_routers-1] = new directory_controller(terminate_simulation,
+						      n_routers-1,
+						      n_routers-1);
   
   for(uint32_t i = 0; i < n_routers; i++) {
     req_routers[i] = new request_router_t(req_routers, i, n_routers);
     fwd_routers[i] = new forward_router_t(fwd_routers, i, n_routers);
     rsp_routers[i] = new response_router_t(rsp_routers, i, n_routers);
   }
+  
   for(uint32_t i = 0; i < n_routers; i++) {
     req_routers[i]->hookup_ring(req_routers[(i-1) % n_routers], req_routers[(i+1) % n_routers]);
     fwd_routers[i]->hookup_ring(fwd_routers[(i-1) % n_routers], fwd_routers[(i+1) % n_routers]);
     rsp_routers[i]->hookup_ring(rsp_routers[(i-1) % n_routers], rsp_routers[(i+1) % n_routers]);
   }
 
+  for(uint32_t i = 0; i < n_routers; i++) {
+    controllers[i]->hookup_networks(req_routers[i], fwd_routers[i], rsp_routers[i]);
+  }
 
   gthread::make_gthread(&step_clock, nullptr);
   for(uint32_t i = 0; i < n_routers; i++) {
@@ -108,14 +129,23 @@ int main(int argc, char *argv[]) {
     gthread::make_gthread(&step_forward_router, reinterpret_cast<void*>(fwd_routers[i]));
     gthread::make_gthread(&step_response_router, reinterpret_cast<void*>(rsp_routers[i]));
   }
+  for(uint32_t i = 0; i < (n_routers-1); i++) {
+    gthread::make_gthread(&step_cc, reinterpret_cast<void*>(controllers[i]));
+  }
+  gthread::make_gthread(&step_dc, reinterpret_cast<void*>(controllers[n_routers-1]));
   start_gthreads();
+
+  for(uint32_t i = 0; i < n_routers; i++) {
+    delete controllers[i];
+  }
   
   for(uint32_t i = 0; i < n_routers; i++) {
     delete req_routers[i];
     delete fwd_routers[i];
     delete rsp_routers[i];
   }
-  
+
+  delete [] controllers;
   delete [] req_routers;
   delete [] fwd_routers;
   delete [] rsp_routers;

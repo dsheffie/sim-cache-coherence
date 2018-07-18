@@ -1,6 +1,8 @@
 #ifndef __routerhh__
 #define __routerhh__
 
+#include <iostream>
+
 #include "sim_queue.hh"
 
 template <typename M>
@@ -111,10 +113,6 @@ public:
     return router_id;
   }
   void hookup_ring(router *prev, router *next) {
-    std::cout << "router " << router_id
-	      << " has left router id of "<< prev->router_id
-	      << " and right router id of " << next->router_id
-	      << "\n";
     output_ports[0] = prev;
     output_ports[1] = next;
   }
@@ -149,6 +147,15 @@ public:
     return false;
   }
 
+  bool recv_msg(M &msg) {
+    if(not(cpu_output->empty())) {
+      MM msg_ = cpu_output->pop();
+      msg = msg_.msg;
+      return true;
+    }
+    return false;
+  }
+
   void tick() {
     for(int ii = 0; ii < (n_ports+1); ii++) {
       int i = (ii + port_priority) % (n_ports+1);
@@ -159,19 +166,7 @@ public:
 	}
       }
     }
-    port_priority = (1+port_priority) % (n_ports+1);
-    
-    if(not(cpu_output->empty())) {
-
-      auto m = cpu_output->pop();
-#if 0
-      std::cout << "router " << router_id
-		<< " received message from "
-		<< m.src
-		<< " that took "
-		<< m.hops << " hops \n";
-#endif
-    }
+    port_priority = (1+port_priority) % (n_ports+1);   
   }
 };
 
