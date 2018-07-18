@@ -57,6 +57,9 @@ private:
   dc_state line_state[num_lines];
   uint8_t cache_lines[num_lines][cl_len];
   std::bitset<max_caches> sharers[num_lines];
+  int find_first_shared(int line) const {
+    return __builtin_ffs(sharers[line].to_ulong())-1;
+  }
 public:
   directory_controller(const bool &terminate_simulation, int cc_id, int n_caches) :
     controller(terminate_simulation, cc_id), n_caches(n_caches) {
