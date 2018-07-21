@@ -155,7 +155,18 @@ public:
     }
     return false;
   }
-
+  bool peek_msg(M &msg) {
+    if(not(cpu_output->empty())) {
+      MM msg_ = cpu_output->peek();
+      msg = msg_.msg;
+      return true;
+    }
+    return false;
+  }
+  void pop_msg() {
+    assert(not(cpu_output->empty()));
+    cpu_output->pop();
+  }
   void tick() {
     for(int ii = 0; ii < (n_ports+1); ii++) {
       int i = (ii + port_priority) % (n_ports+1);
