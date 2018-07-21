@@ -4,6 +4,7 @@
 #include "helper.hh"
 
 extern uint64_t clock_cycle;
+extern controller **controllers;
 
 #define print_var(X) {							\
     std::cout << "actor " << cc_id					\
@@ -80,8 +81,30 @@ void cache_controller::step() {
 	}
 	break;
       case state::read: {
-	std::cout << cc_id << " generated read, line state = "
-		  << line_state[curr_line] << "\n";
+	auto dc = reinterpret_cast<directory_controller*>(controllers[directory_id]);
+	
+	std::cout << "actor " << cc_id
+		  << " generated read, cache line state = "
+		  << line_state[curr_line]
+		  << " directory state = "
+		  << dc->get_line_state(curr_line)
+		  << " @ cycle " << clock_cycle << "\n";
+
+	int n_shared = 0, n_modified = 0;
+	for(int i = 0; i < directory_id; i++) {
+	  auto cc = reinterpret_cast<cache_controller*>(controllers[i]);
+	  if(cc->get_line_state(curr_line)==cc_state::M) {
+	    n_modified++;
+	  }
+	}
+	assert(n_modified <= 1);
+	if(line_state[curr_line] == cc_state::S and n_modified) {
+	  die();
+	}
+	// if(dc->get_line_state(curr_line) == dc_state::M and
+	//    line_state[curr_line] == cc_state::S) {
+	//   die();
+	// }
 	request_message msg(request_message_type::GetS, cc_id, 0);
 	if(line_state[curr_line] == cc_state::I) {
 	  if(req_network->send_msg(directory_id, msg)) {
@@ -96,8 +119,8 @@ void cache_controller::step() {
       case state::write: {
 	inv_recv = 0;
 	inv_needed = -1;
-	std::cout << cc_id << " generated write, line state = "
-		  << line_state[curr_line] << "\n";
+	std::cout << "actor " << cc_id << " generated write, line state = "
+		  << line_state[curr_line] << " @ cycle " << clock_cycle << "\n";
 	request_message msg(request_message_type::GetM, cc_id, 0);
 	if(line_state[curr_line] == cc_state::I) {
 	  if(req_network->send_msg(directory_id, msg)) {
@@ -299,7 +322,6 @@ void directory_controller::step() {
 	if(rsp_network->send_msg(msg.reply_to, rsp_msg)) {
 	  curr_state = state::process_GetM_S_SendInv;
 	  sharers[curr_line][msg.reply_to] = true;
-	  line_state[curr_line] = dc_state::M;
 	}
 	else {
 	  std::cout << "directory can't send rsp message in state process_GetM_S_SendData\n";
@@ -320,6 +342,7 @@ void directory_controller::step() {
 	}
 	if(sharers[curr_line].count()==1) {
 	  curr_state = state::idle;
+	  line_state[curr_line] = dc_state::M;
 	  //curr_state = state::process_GetM_S_SendData;
 	}
 	break;

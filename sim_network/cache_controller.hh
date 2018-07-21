@@ -48,6 +48,9 @@ public:
     }
   }
   void step() override;
+  cc_state get_line_state(int line) const {
+    return line_state[line & (num_lines-1)];
+  }
 };
 
 class directory_controller : public controller {
@@ -70,6 +73,9 @@ public:
 	cache_lines[i][j] = i;
       }
     }
+  }
+  dc_state get_line_state(int line) const {
+    return line_state[line & (num_lines-1)];
   }
   void step() override;
 };

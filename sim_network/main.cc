@@ -29,8 +29,9 @@ typedef router<response_message> response_router_t;
 
 static bool terminate_simulation = false;
 uint64_t clock_cycle = 0;
+controller **controllers = nullptr;
 
-
+static int sent_messages = -1, streak = 0;
 
 template<typename RT>
 void step_router(void *arg) {
@@ -38,7 +39,7 @@ void step_router(void *arg) {
   int r_id = router->get_id();
   uint64_t n_msgs = 0;
   while(not(terminate_simulation)) {
-    router->tick();
+    sent_messages += router->tick();
     gthread_yield();
   }
   std::cout << "(termination) router " << r_id << ": n_msgs = "
@@ -47,10 +48,6 @@ void step_router(void *arg) {
 }
 
 static const uint32_t n_routers = 5;
-
-
-
-int sent_messages = -1, streak = 0;
 
 extern "C" {
   void step_clock(void *arg) {
@@ -94,14 +91,13 @@ extern "C" {
   
 };
 
-
 int main(int argc, char *argv[]) {
   srand(3);
   request_router_t **req_routers = new request_router_t*[n_routers];
   forward_router_t **fwd_routers = new forward_router_t*[n_routers];
   response_router_t **rsp_routers = new response_router_t*[n_routers];
   
-  controller **controllers = new controller*[n_routers];
+  controllers = new controller*[n_routers];
   for(uint32_t i = 0; i < (n_routers-1); i++) {
     controllers[i] = new cache_controller(terminate_simulation, i, n_routers-1);
   }

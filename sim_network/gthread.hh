@@ -24,7 +24,7 @@ private:
   static const int num_saved_regs = 7;
 #endif
   typedef void (*callback_t)(void*);
-  static const size_t stack_sz = 1<<20;
+  static const size_t stack_sz = 1<<21;
   enum class thread_status {uninitialized,ready,run};
   static gthread_ptr head;
   static std::list<gthread_ptr> threads;

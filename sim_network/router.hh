@@ -167,17 +167,20 @@ public:
     assert(not(cpu_output->empty()));
     cpu_output->pop();
   }
-  void tick() {
+  int tick() {
+    int msg_cnt = 0;
     for(int ii = 0; ii < (n_ports+1); ii++) {
       int i = (ii + port_priority) % (n_ports+1);
       if(not(input_buffers[i]->empty())) {
 	if(route_msg(input_buffers[i]->peek())) {
 	  input_buffers[i]->pop();
+	  msg_cnt++;
 	  //std::cout << "router " << router_id << " routed message from port " << i << "\n";
 	}
       }
     }
-    port_priority = (1+port_priority) % (n_ports+1);   
+    port_priority = (1+port_priority) % (n_ports+1);
+    return msg_cnt;
   }
 };
 
