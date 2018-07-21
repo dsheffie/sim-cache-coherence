@@ -19,6 +19,17 @@ static const int lg2_num_lines = 4;
 
 enum class request_message_type {REQUEST_MESSAGE_LIST(ENUM_LIST_ENTRY)};
 
+inline std::ostream & operator<<(std::ostream &out, request_message_type s) {
+#define ENUM_PAIR_ENTRY(X) {request_message_type::X, #X},
+  static const std::map<request_message_type, std::string> req_names = {
+    REQUEST_MESSAGE_LIST(ENUM_PAIR_ENTRY)
+  };
+  out << req_names.at(s);
+  return out;
+#undef ENUM_PAIR_ENTRY
+}
+
+
 #define FORWARD_MESSAGE_LIST(X)		\
   X(FwdGetS)					\
   X(FwdGetM)					\
@@ -125,11 +136,12 @@ struct forward_message {
 struct response_message {
   response_message_type msg_type;
   int AckCount;
+  int fromActor;
   uint8_t data[cl_len] = {0};
   response_message() :
-    msg_type(response_message_type::Dummy), AckCount(0) {}
+    msg_type(response_message_type::Dummy), AckCount(0), fromActor(-1) {}
   response_message(response_message_type msg_type, int AckCount = 0) :
-    msg_type(msg_type), AckCount(AckCount) {}
+    msg_type(msg_type), AckCount(AckCount), fromActor(-1) {}
   void setData(uint8_t *data_) {
     memcpy(this->data, data_, cl_len);
   }
