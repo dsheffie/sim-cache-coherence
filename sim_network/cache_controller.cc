@@ -3,6 +3,13 @@
 #include "gthread.hh"
 #include "helper.hh"
 
+extern uint64_t clock_cycle;
+
+#define print_var(X) {							\
+    std::cout << "actor " << cc_id					\
+	      << " : " << #X << " = " << X				\
+	      <<" @ cycle " << clock_cycle << "\n";			\
+  }
 
 void cache_controller::step() {
 #define CACHE_STATE_LIST(X)			\
@@ -44,7 +51,7 @@ void cache_controller::step() {
 	    line_state[fwd_msg.addr & (num_lines-1)] = cc_state::I;
 	    rsp_msg.msg_type = response_message_type::InvAck;
 	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
-	      std::cout << cc_id << " responded to invalidate message\n";
+	      print_var(rsp_msg.msg_type);
 	      curr_state = state::idle;
 	    }
 	    break;
@@ -125,6 +132,8 @@ void cache_controller::step() {
 	  }
 	break;
       case state::SM_AD:
+	print_var(inv_needed);
+	print_var(inv_recv);
 	if(not(rsp_network->peek_msg(rsp_msg)))
 	  break;
 	switch(rsp_msg.msg_type)
@@ -139,18 +148,19 @@ void cache_controller::step() {
 	    }
 	    break;
 	  case response_message_type::InvAck:
+	    std::cout << "GOT INVALIDATION!\n";
 	    inv_recv++;
 	    rsp_network->pop_msg();
-	    if(inv_recv == inv_needed) {
-	      std::cout << "GOT INVALIDATIONS!\n";
-	      line_state[curr_line] = cc_state::M;
-	      curr_state = state::idle;
-	    }
 	    break;
 	  default:
 	    std::cout << cc_id << " got other message...\n";
 	    break;
 	  }
+	if(inv_recv == inv_needed) {
+
+	  line_state[curr_line] = cc_state::M;
+	  curr_state = state::idle;
+	}
 	break;
 
       case state::IS_D: {
@@ -170,11 +180,11 @@ void cache_controller::step() {
       }
     gthread_yield();
   }
-
-#define CASE_STMT(X) {						\
-    case state::X:						\
-      std::cout << cc_id << " in state " << #X << " state\n";	\
-      break;							\
+  
+#define CASE_STMT(X) {							\
+    case state::X:							\
+      std::cout << "actor " << cc_id << " in state " << #X << " state\n"; \
+      break;								\
   }
   switch(curr_state)
     {
@@ -201,11 +211,10 @@ void directory_controller::step() {
   enum class state {DIRECTORY_STATE_LIST(ENTRY)};
 
 #undef ENTRY
-  
-  
   state curr_state = state::idle;
   int curr_line  = -1;
   request_message msg;
+  response_message rsp_msg;
   while(not(terminate_simulation)) {
     switch(curr_state)
       {
@@ -268,7 +277,12 @@ void directory_controller::step() {
 	break;
       }
       case state::process_GetS_M_WaitForData:
-	
+	assert(line_state[curr_line] == dc_state::S_D);
+	if(rsp_network->recv_msg(rsp_msg)) {
+	  std::cout << "GOT REPLY FROM LINE IN M STATE\n";
+	  line_state[curr_line] = dc_state::S;
+	  curr_state = state::idle;
+	}
 	break;
       case state::process_GetM_I:
 	std::cout << "need to do things for a write to an invalid line\n";
@@ -315,10 +329,10 @@ void directory_controller::step() {
       }
     gthread_yield();
   }
-#define CASE_STMT(X) {						\
-    case state::X:						\
-      std::cout << cc_id << " in state " << #X << " state\n";	\
-      break;							\
+#define CASE_STMT(X) {							\
+    case state::X:							\
+      std::cout << "actor " << cc_id << " in state " << #X << " state\n"; \
+      break;								\
   }
   switch(curr_state)
     {

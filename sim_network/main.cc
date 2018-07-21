@@ -28,7 +28,9 @@ typedef router<forward_message> forward_router_t;
 typedef router<response_message> response_router_t;
 
 static bool terminate_simulation = false;
-static uint64_t clock_cycle = 0;
+uint64_t clock_cycle = 0;
+
+
 
 template<typename RT>
 void step_router(void *arg) {

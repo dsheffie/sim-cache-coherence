@@ -38,14 +38,22 @@ inline std::ostream & operator<<(std::ostream &out, forward_message_type s) {
 #undef ENUM_PAIR_ENTRY
 }
 
-
-
 #define RESPONSE_MESSAGE_LIST(X)		\
   X(Data)					\
   X(InvAck)					\
   X(Dummy)
 
 enum class response_message_type {RESPONSE_MESSAGE_LIST(ENUM_LIST_ENTRY)};
+
+inline std::ostream & operator<<(std::ostream &out, response_message_type s) {
+#define ENUM_PAIR_ENTRY(X) {response_message_type::X, #X},
+  static const std::map<response_message_type, std::string> rsp_names = {
+    RESPONSE_MESSAGE_LIST(ENUM_PAIR_ENTRY)
+  };
+  out << rsp_names.at(s);
+  return out;
+#undef ENUM_PAIR_ENTRY
+}
 
 #define CC_STATE_LIST(X)			\
   X(I)						\
