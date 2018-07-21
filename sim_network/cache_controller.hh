@@ -1,5 +1,5 @@
-#ifndef __cachecontrollerhh__
-#define __cachecontrollerhh__
+#ifndef __cache_controller_hh__
+#define __cache_controller_hh__
 
 #include "router.hh"
 #include "coherence.hh"

@@ -5,10 +5,22 @@
 
 
 void cache_controller::step() {
-  enum class state {idle, forward, read, write, IS_D, IM_AD, SM_AD};
+#define CACHE_STATE_LIST(X)			\
+  X(idle)					\
+    X(forward_0)				\
+    X(forward_1)				\
+    X(read)					\
+    X(write)					\
+    X(IS_D)					\
+    X(IM_AD)					\
+    X(SM_AD)
+
+#define ENTRY(X) X,
+  enum class state {CACHE_STATE_LIST(ENTRY)};
+#undef ENTRY
+
   state curr_state = state::idle;
   forward_message fwd_msg;
-  response_message inv_ack_msg(response_message_type::InvAck);
   response_message rsp_msg;
   int inv_recv = 0, inv_needed = -1;
   while(not(terminate_simulation)) {
@@ -17,7 +29,7 @@ void cache_controller::step() {
       {
       case state::idle: {
 	if(fwd_network->recv_msg(fwd_msg)) {
-	  curr_state = state::forward;
+	  curr_state = state::forward_0;
 	}
 	else {
 	  curr_state = cc_id==0 and (rand()&1) ? state::write : state::read;
@@ -25,23 +37,41 @@ void cache_controller::step() {
 	}
 	break;
       }
-      case state::forward: {
+      case state::forward_0: {
 	switch(fwd_msg.msg_type)
 	  {
 	  case forward_message_type::Inv: {
 	    line_state[fwd_msg.addr & (num_lines-1)] = cc_state::I;
-	    if(rsp_network->send_msg(fwd_msg.reply_to, inv_ack_msg)) {
+	    rsp_msg.msg_type = response_message_type::InvAck;
+	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
 	      std::cout << cc_id << " responded to invalidate message\n";
 	      curr_state = state::idle;
 	    }
 	    break;
 	  }
+	  case forward_message_type::FwdGetS:
+	    curr_line = fwd_msg.addr & (num_lines-1);
+	    line_state[curr_line] = cc_state::S;
+	    rsp_msg.msg_type = response_message_type::Data;
+	    rsp_msg.AckCount = 0;
+	    rsp_msg.setData(cache_lines[curr_line]);
+	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
+	      std::cout << cc_id << " needs to reply to "
+			<< fwd_msg.reply_to << "\n";
+	      curr_state = state::forward_1;
+	    }
+	    break;
 	  default:
 	    std::cout << "cache " << cc_id << " wtf : " << fwd_msg.msg_type << "\n";
 	    die();
 	  }
 	break;
       }
+      case state::forward_1:
+	if(rsp_network->send_msg(directory_id, rsp_msg)) {
+	  curr_state = state::idle;
+	}
+	break;
       case state::read: {
 	std::cout << cc_id << " generated read, line state = "
 		  << line_state[curr_line] << "\n";
@@ -141,46 +171,38 @@ void cache_controller::step() {
     gthread_yield();
   }
 
+#define CASE_STMT(X) {						\
+    case state::X:						\
+      std::cout << cc_id << " in state " << #X << " state\n";	\
+      break;							\
+  }
   switch(curr_state)
     {
-    case state::idle:
-      std::cout << cc_id << " in idle state\n";
-      break;
-    case state::forward:
-      std::cout << cc_id << " in forward state\n";
-      break;
-    case state::read:
-      std::cout << cc_id << " in read state\n";
-      break;
-    case state::write:
-      std::cout << cc_id << " in write state\n";
-      break;
-    case state::IS_D:
-      std::cout << cc_id << " in IS_D state\n";
-      break;
-    case state::IM_AD:
-      std::cout << cc_id << " in IM_AD state\n";
-      break;
-    case state::SM_AD:
-      std::cout << cc_id << " in SM_AD state\n";
-      break;
-    default:
-      std::cout << cc_id << " in unknown state\n";
-      break;
+      CACHE_STATE_LIST(CASE_STMT)
     }
+#undef CACHE_STATE_LIST
+#undef CASE_STMT  
   gthread_terminate();
 }
 
 
 void directory_controller::step() {
-  enum class state {idle,
-		    process_GetS_IS,
-		    process_GetS_M_SendFwdGetS,
-		    process_GetS_M_WaitForData,
-		    process_GetM_I,
-		    process_GetM_S_SendInv,
-		    process_GetM_S_SendData,
-		    process_PutM};
+#define DIRECTORY_STATE_LIST(X)			\
+  X(idle)					\
+    X(process_GetS_IS)				\
+    X(process_GetS_M_SendFwdGetS)		\
+    X(process_GetS_M_WaitForData)		\
+    X(process_GetM_I)				\
+    X(process_GetM_S_SendInv)			\
+    X(process_GetM_S_SendData)			\
+    X(process_PutM)
+  
+#define ENTRY(X) X,
+  enum class state {DIRECTORY_STATE_LIST(ENTRY)};
+
+#undef ENTRY
+  
+  
   state curr_state = state::idle;
   int curr_line  = -1;
   request_message msg;
@@ -199,6 +221,7 @@ void directory_controller::step() {
 	  {
 	  case request_message_type::GetS:
 	    if(line_state[curr_line]==dc_state::M) {
+	      line_state[curr_line] = dc_state::S_D;
 	      curr_state = state::process_GetS_M_SendFwdGetS;
 	    }
 	    else {
@@ -240,12 +263,12 @@ void directory_controller::step() {
 	assert(owner_id >= 0);
 	forward_message fwd_msg(forward_message_type::FwdGetS, msg.reply_to, msg.addr);
 	if(fwd_network->send_msg(owner_id, fwd_msg)) {
-	  std::cout << "sent fwdGetS to " << owner_id << "\n";
 	  curr_state = state::process_GetS_M_WaitForData;
 	}
 	break;
       }
       case state::process_GetS_M_WaitForData:
+	
 	break;
       case state::process_GetM_I:
 	std::cout << "need to do things for a write to an invalid line\n";
@@ -292,5 +315,16 @@ void directory_controller::step() {
       }
     gthread_yield();
   }
+#define CASE_STMT(X) {						\
+    case state::X:						\
+      std::cout << cc_id << " in state " << #X << " state\n";	\
+      break;							\
+  }
+  switch(curr_state)
+    {
+      DIRECTORY_STATE_LIST(CASE_STMT)
+    }
+#undef DIRECTORY_STATE_LIST
+#undef CASE_STMT  
   gthread_terminate();
 }
