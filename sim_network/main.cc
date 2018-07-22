@@ -29,6 +29,7 @@ typedef router<response_message> response_router_t;
 
 static bool terminate_simulation = false;
 uint64_t clock_cycle = 0;
+static uint64_t max_cycles = 100;
 controller **controllers = nullptr;
 
 static int sent_messages = -1, streak = 0;
@@ -63,6 +64,9 @@ extern "C" {
 	std::cout << "streak of " << streak << " cycles without progres\n";
 	terminate_simulation = true;
       }
+      if(clock_cycle > max_cycles) {
+	terminate_simulation = true;
+      }
       sent_messages = 0;
       gthread_yield();
     }
@@ -93,6 +97,9 @@ extern "C" {
 
 int main(int argc, char *argv[]) {
   srand(3);
+  if(argc > 1) {
+    max_cycles = atoi(argv[1]);
+  }
   request_router_t **req_routers = new request_router_t*[n_routers];
   forward_router_t **fwd_routers = new forward_router_t*[n_routers];
   response_router_t **rsp_routers = new response_router_t*[n_routers];

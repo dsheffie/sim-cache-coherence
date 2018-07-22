@@ -11,14 +11,14 @@ protected:
   typedef router<request_message> request_router_t;
   typedef router<forward_message> forward_router_t;
   typedef router<response_message> response_router_t;
-  const bool &terminate_simulation;
+  bool &terminate_simulation;
   int cc_id = -1;
   request_router_t *req_network = nullptr;
   forward_router_t *fwd_network = nullptr;
   response_router_t *rsp_network = nullptr;
   uint8_t cache_lines[num_lines][cl_len];
 public:
-  controller(const bool &terminate_simulation, int cc_id) :
+  controller(bool &terminate_simulation, int cc_id) :
     terminate_simulation(terminate_simulation), cc_id(cc_id) {
     for(int i = 0; i < num_lines; i++) {
       for(int j = 0; j < cl_len; j++) {
@@ -49,7 +49,7 @@ private:
   int curr_line  = -1;
   cc_state line_state[num_lines];
 public:
-  cache_controller(const bool &terminate_simulation, int cc_id, int directory_id) :
+  cache_controller(bool &terminate_simulation, int cc_id, int directory_id) :
     controller(terminate_simulation, cc_id), directory_id(directory_id) {
     for(int i = 0; i < num_lines; i++) {
       line_state[i] = cc_state::I;
@@ -71,7 +71,7 @@ private:
     return __builtin_ffs(sharers[line].to_ulong())-1;
   }
 public:
-  directory_controller(const bool &terminate_simulation, int cc_id, int n_caches) :
+  directory_controller(bool &terminate_simulation, int cc_id, int n_caches) :
     controller(terminate_simulation, cc_id), n_caches(n_caches) {
     for(int i = 0; i < num_lines; i++) {
       line_state[i] = dc_state::I;
