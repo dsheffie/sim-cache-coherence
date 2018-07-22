@@ -154,6 +154,8 @@ int main(int argc, char *argv[]) {
   delete [] req_routers;
   delete [] fwd_routers;
   delete [] rsp_routers;
+
+  gthread::free_threads();
   
   return 0;
 }

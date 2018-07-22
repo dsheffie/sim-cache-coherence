@@ -47,12 +47,7 @@ void cache_controller::step() {
 	}
 	else {
 	  curr_line = 0;//rand() & (num_lines-1);
-	  if(cc_id == 0 or cc_id == 1) {
-	    curr_state = ((rand() % 4 == 0) and line_state[curr_line] != cc_state::I) ? state::write : state::read;
-	  }
-	  else {
-	    curr_state = ((rand() % 2) == 0) ? state::read : state::idle;
-	  }
+	  curr_state = ((rand() % 4 == 0) and line_state[curr_line] != cc_state::I) ? state::write : state::read;
 	}
 	break;
       }
