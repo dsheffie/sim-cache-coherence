@@ -176,9 +176,7 @@ void cache_controller::step() {
 		      << rsp_msg.AckCount << " sharers\n";
 	    rsp_network->pop_msg();
 	    inv_needed = rsp_msg.AckCount;
-	    for(int i = 0; i < cl_len; i++) {
-	      cache_lines[curr_line][i] = rsp_msg.data[i];
-	    }
+	    copyLineData(curr_line, rsp_msg.data);
 	    break;
 	  default:
 	    std::cout << cc_id << " got other message...\n";
@@ -195,9 +193,7 @@ void cache_controller::step() {
 	  case response_message_type::Data:
 	    rsp_network->pop_msg();
 	    inv_needed = rsp_msg.AckCount;
-	    for(int i = 0; i < cl_len; i++) {
-	      cache_lines[curr_line][i] = rsp_msg.data[i];
-	    }
+	    copyLineData(curr_line, rsp_msg.data);
 	    break;
 	  case response_message_type::InvAck:
 	    inv_recv++;
@@ -221,9 +217,7 @@ void cache_controller::step() {
 	  std::cout << "cache " << cc_id << " line " << curr_line
 		    << " now in state " << line_state[curr_line] << "\n";
 #endif
-	  for(int i = 0; i < cl_len; i++) {
-	    cache_lines[curr_line][i] = rsp_msg.data[i];
-	  }
+	  copyLineData(curr_line, rsp_msg.data);
 	  curr_state = state::idle;
 	}
 	break;
@@ -340,9 +334,7 @@ void directory_controller::step() {
 	  assert(rsp_msg.msg_type == response_message_type::Data);
 	  line_state[curr_line] = dc_state::S;
 	  curr_state = state::idle;
-	  for(int i = 0; i < cl_len; i++) {
-	    cache_lines[curr_line][i] = rsp_msg.data[i];
-	  }
+	  copyLineData(curr_line, rsp_msg.data);
 	}
 	break;
       case state::process_GetM_I:
