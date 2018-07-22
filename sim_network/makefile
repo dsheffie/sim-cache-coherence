@@ -24,7 +24,7 @@ LIBS =  $(EXTRA_LD) -lpthread -lffi -lcurses -lz -lsigsegv #-lunwind -lboost_sys
 
 
 DEP = $(OBJ:.o=.d)
-OPT = -O0 -g -std=c++11
+OPT = -O2 -g -std=c++11
 EXE = sim_network
 
 .PHONY : all clean
