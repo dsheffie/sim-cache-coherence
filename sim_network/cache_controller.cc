@@ -6,7 +6,9 @@
 extern uint64_t clock_cycle;
 extern controller **controllers;
 
-static bool silent = false;
+static bool silent = true;
+
+static int last_ptr_val = 0;
 
 #define print_var(X) {							\
   if(not(silent)) {							\
@@ -55,7 +57,9 @@ void cache_controller::step() {
 	switch(fwd_msg.msg_type)
 	  {
 	  case forward_message_type::Inv: {
-	    std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
+	    if(not(silent)) {
+	      std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
+	    }
 	    line_state[fwd_msg.addr & (num_lines-1)] = cc_state::I;
 	    rsp_msg.msg_type = response_message_type::InvAck;
 	    rsp_msg.fromActor = cc_id;
@@ -73,13 +77,13 @@ void cache_controller::step() {
 	    rsp_msg.fromActor = cc_id;
 	    rsp_msg.setData(cache_lines[curr_line]);
 	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
-#if 1
-	      std::cout << cc_id << " needs to reply to "
-			<< fwd_msg.reply_to
-			<< " with data "
-			<< *reinterpret_cast<int*>(rsp_msg.data)
-			<< "\n";
-#endif
+	      if(not(silent)) {
+		std::cout << cc_id << " needs to reply to "
+			  << fwd_msg.reply_to
+			  << " with data "
+			  << *reinterpret_cast<int*>(rsp_msg.data)
+			  << "\n";
+	      }
 	      curr_state = state::forward_1;
 	    }
 	    break;
@@ -119,9 +123,11 @@ void cache_controller::step() {
 	for(int i = 0; i < directory_id; i++) {
 	  auto cc = reinterpret_cast<cache_controller*>(controllers[i]);
 	  if(cc->get_line_state(curr_line)==cc_state::M) {
-	    std::cout << "cache " << i << " has line in "
-		      << cc->get_line_state(curr_line)
-		      << "\n";
+	    if(not(silent)) {
+	      std::cout << "cache " << i << " has line in "
+			<< cc->get_line_state(curr_line)
+			<< "\n";
+	    }
 	    n_modified++;
 	  }
 	}
@@ -168,12 +174,14 @@ void cache_controller::step() {
 	break;
       }
       case state::do_write: {
-	std::cout << "CACHE " << cc_id << " HAS GLOBAL M STATE\n";
 	int *ptr = reinterpret_cast<int*>(&cache_lines[curr_line]);
 	//print_var(*ptr);
-	std::cout << "actor " << cc_id << " generated write, line value = "
-		  << *ptr << " @ cycle " << clock_cycle << "\n";
+	//std::cout << "actor " << cc_id << " generated write, line value = "
+	//<< *ptr << " @ cycle " << clock_cycle << "\n";
+
 	*ptr = *ptr + 1;
+	assert(*ptr = (last_ptr_val+1));
+	last_ptr_val = *ptr;
 	curr_state = state::idle;
 	break;
       }
@@ -186,20 +194,24 @@ void cache_controller::step() {
 	switch(rsp_msg.msg_type)
 	  {
 	  case response_message_type::Data:
-	    std::cout << "cache " << cc_id << " GOT DATA FROM DIRECTORY in state "
-		      << "state::IM_AD"
-		      << " need to wait for "
-		      << rsp_msg.AckCount
-		      << " sharers\n";
+	    if(not(silent)) {
+	      std::cout << "cache " << cc_id << " GOT DATA FROM DIRECTORY in state "
+			<< "state::IM_AD"
+			<< " need to wait for "
+			<< rsp_msg.AckCount
+			<< " sharers\n";
+	    }
 	    inv_needed = rsp_msg.AckCount;
 	    copyLineData(curr_line, rsp_msg.data);
 	    break;
 	  case response_message_type::InvAck:
-	    std::cout << "cache " << cc_id << " got InvAck in state "
-		      << "state::IM_AD"
-		      << " need to wait for "
-		      << inv_needed
-		      << " sharers\n";
+	    if(not(silent)) {
+	      std::cout << "cache " << cc_id << " got InvAck in state "
+			<< "state::IM_AD"
+			<< " need to wait for "
+			<< inv_needed
+			<< " sharers\n";
+	    }
 	    inv_recv++;
 	    break;
 	  default:
@@ -218,7 +230,9 @@ void cache_controller::step() {
 
 	if(fwd_network->peek_msg(fwd_msg)) {
 	  if(fwd_msg.msg_type == forward_message_type::Inv) {
-	    std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
+	    if(not(silent)) {
+	      std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
+	    }
 	    fwd_network->pop_msg();
 	    curr_state = state::SM_AD_TO_IM_AD;
 	  }
@@ -252,11 +266,13 @@ void cache_controller::step() {
 	inv_recv = 0;
 	inv_needed = -1;
 	if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
-	  std::cout << "cache " << cc_id << " acking invalidate to cache "
-		    << fwd_msg.reply_to
-		    << " for line " << (fwd_msg.addr & (num_lines-1))
-		    << " at cycle " << clock_cycle
-		    << "\n";
+	  if(not(silent)) {
+	    std::cout << "cache " << cc_id << " acking invalidate to cache "
+		      << fwd_msg.reply_to
+		      << " for line " << (fwd_msg.addr & (num_lines-1))
+		      << " at cycle " << clock_cycle
+		      << "\n";
+	  }
 	  curr_state = state::IM_AD;
 	}
 	break;
@@ -264,10 +280,6 @@ void cache_controller::step() {
 	if(rsp_network->recv_msg(rsp_msg)) {
 	  assert(curr_line != -1);
 	  line_state[curr_line] = cc_state::S;
-#if 0
-	  std::cout << "cache " << cc_id << " line " << curr_line
-		    << " now in state " << line_state[curr_line] << "\n";
-#endif
 	  copyLineData(curr_line, rsp_msg.data);
 	  curr_state = state::idle;
 	}
@@ -321,12 +333,12 @@ void directory_controller::step() {
 	  break;
 	}
 	curr_line = msg.addr&(num_lines-1);
-#if 1
-	std::cout << "directory got " << msg.msg_type << " from " << msg.reply_to << " for line "
-		  << curr_line
-		  << ", line in state " << line_state[curr_line]
-		  << " @ cycle " << clock_cycle << "\n";
-#endif
+	if(not(silent)) {
+	  std::cout << "directory got " << msg.msg_type << " from " << msg.reply_to << " for line "
+		    << curr_line
+		    << ", line in state " << line_state[curr_line]
+		    << " @ cycle " << clock_cycle << "\n";
+	}
 	switch(msg.msg_type)
 	  {
 	  case request_message_type::GetS:
@@ -405,6 +417,7 @@ void directory_controller::step() {
 	break;
       case state::process_GetM_I:
 	std::cout << "need to do things for a write to an invalid line\n";
+	die();
 	break;
       case state::process_GetM_S_SendData: {
 	int share_count = sharers[curr_line].count();
@@ -416,9 +429,6 @@ void directory_controller::step() {
 	if(rsp_network->send_msg(msg.reply_to, rsp_msg)) {
 	  curr_state = state::process_GetM_S_SendInv;
 	  sharers[curr_line][msg.reply_to] = true;
-	}
-	else {
-	  std::cout << "directory can't send rsp message in state process_GetM_S_SendData\n";
 	}
 	break;
       }

@@ -48,7 +48,8 @@ void step_router(void *arg) {
   gthread_terminate();
 }
 
-static const uint32_t n_routers = 9;
+static const uint32_t n_caches = 16;
+static const uint32_t n_routers = n_caches+1;
 
 extern "C" {
   void step_clock(void *arg) {
