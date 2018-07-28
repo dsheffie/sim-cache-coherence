@@ -46,7 +46,6 @@ public:
 class cache_controller : public controller {
 private:
   int directory_id = -1;
-  int curr_line  = -1;
   cc_state line_state[num_lines];
 public:
   cache_controller(bool &terminate_simulation, int cc_id, int directory_id) :

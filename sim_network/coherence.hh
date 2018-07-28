@@ -135,13 +135,15 @@ struct forward_message {
 
 struct response_message {
   response_message_type msg_type;
+  uint32_t addr;
   int AckCount;
   int fromActor;
   uint8_t data[cl_len] = {0};
   response_message() :
-    msg_type(response_message_type::Dummy), AckCount(0), fromActor(-1) {}
-  response_message(response_message_type msg_type, int AckCount = 0) :
-    msg_type(msg_type), AckCount(AckCount), fromActor(-1) {}
+    msg_type(response_message_type::Dummy), addr(0),
+    AckCount(0), fromActor(-1) {}
+  response_message(response_message_type msg_type,uint32_t addr=0,int AckCount=0) :
+    msg_type(msg_type), addr(addr), AckCount(AckCount), fromActor(-1) {}
   void setData(uint8_t *data_) {
     memcpy(this->data, data_, cl_len);
   }

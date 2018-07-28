@@ -6,7 +6,7 @@
 extern uint64_t clock_cycle;
 extern controller **controllers;
 
-static bool silent = true;
+static bool silent = false;
 
 static int last_ptr_val = 0;
 
@@ -36,6 +36,8 @@ void cache_controller::step() {
 #undef ENTRY
 
   state curr_state = state::idle;
+  state post_fwd_state = state::idle;
+  int curr_line  = -1, fwd_line = -1;
   forward_message fwd_msg;
   response_message rsp_msg;
   int inv_recv = 0, inv_needed = -1;
@@ -46,36 +48,47 @@ void cache_controller::step() {
       case state::idle: {
 	if(fwd_network->recv_msg(fwd_msg)) {
 	  curr_state = state::forward_0;
+	  post_fwd_state = state::idle;
 	}
 	else {
-	  curr_line = 1;//rand() & (num_lines-1);
-	  curr_state = ((rand() % 4 == 0) and line_state[curr_line] != cc_state::I) ? state::write : state::read;
+	  curr_line = rand() & (num_lines-1);
+	  if(line_state[curr_line] == cc_state::I)
+	    curr_state = state::read;//((rand() % 4 == 0) and line_state[curr_line] != cc_state::I) ? state::write : state::read;
+	  else if(line_state[curr_line] == cc_state::S and cc_id == 0)
+	    curr_state = state::write;
 	}
 	break;
       }
       case state::forward_0: {
+	std::cout << "cache " << cc_id
+		  << " processing forwarded message @ cycle "
+		  << clock_cycle
+		  << "\n";
+
 	switch(fwd_msg.msg_type)
 	  {
 	  case forward_message_type::Inv: {
-	    if(not(silent)) {
-	      std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
-	    }
-	    line_state[fwd_msg.addr >> lg2_num_lines] = cc_state::I;
+	    fwd_line = fwd_msg.addr >> lg2_num_lines;
+	    line_state[fwd_line] = cc_state::I;
 	    rsp_msg.msg_type = response_message_type::InvAck;
+	    rsp_msg.addr = fwd_msg.addr;
 	    rsp_msg.fromActor = cc_id;
 	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
 	      print_var(rsp_msg.msg_type);
-	      curr_state = state::idle;
+	      print_var(fwd_msg.reply_to);
+	      print_var(rsp_msg.addr);
+	      curr_state = post_fwd_state;
 	    }
 	    break;
 	  }
 	  case forward_message_type::FwdGetS:
-	    curr_line = fwd_msg.addr >> lg2_num_lines;
-	    line_state[curr_line] = cc_state::S;
+	    fwd_line = fwd_msg.addr >> lg2_num_lines;
+	    line_state[fwd_line] = cc_state::S;
 	    rsp_msg.msg_type = response_message_type::Data;
 	    rsp_msg.AckCount = 0;
+	    rsp_msg.addr = fwd_msg.addr;
 	    rsp_msg.fromActor = cc_id;
-	    rsp_msg.setData(cache_lines[curr_line]);
+	    rsp_msg.setData(cache_lines[fwd_line]);
 	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
 	      if(not(silent)) {
 		std::cout << cc_id << " needs to reply to "
@@ -88,14 +101,15 @@ void cache_controller::step() {
 	    }
 	    break;
 	  case forward_message_type::FwdGetM:
-	    curr_line = fwd_msg.addr >> lg2_num_lines;
-	    line_state[curr_line] = cc_state::I;
+	    fwd_line = fwd_msg.addr >> lg2_num_lines;
+	    line_state[fwd_line] = cc_state::I;
 	    rsp_msg.msg_type = response_message_type::Data;
+	    rsp_msg.addr = fwd_msg.addr;
 	    rsp_msg.AckCount = 0;
 	    rsp_msg.fromActor = cc_id;
-	    rsp_msg.setData(cache_lines[curr_line]);
+	    rsp_msg.setData(cache_lines[fwd_line]);
 	    if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
-	      curr_state = state::idle;
+	      curr_state = post_fwd_state;
 	    }
 	    break;
 	  default:
@@ -106,14 +120,16 @@ void cache_controller::step() {
       }
       case state::forward_1:
 	if(rsp_network->send_msg(directory_id, rsp_msg)) {
-	  curr_state = state::idle;
+	  curr_state = post_fwd_state;
 	}
 	break;
       case state::read: {
 	auto dc = reinterpret_cast<directory_controller*>(controllers[directory_id]);
-#if 0
+#if 1
 	std::cout << "actor " << cc_id
-		  << " generated read, cache line state = "
+		  << " generated read for line "
+		  << curr_line 
+		  << ", cache line state = "
 		  << line_state[curr_line]
 		  << " directory state = "
 		  << dc->get_line_state(curr_line)
@@ -206,16 +222,23 @@ void cache_controller::step() {
 	    break;
 	  case response_message_type::InvAck:
 	    if(not(silent)) {
-	      std::cout << "cache " << cc_id << " got InvAck in state "
+	      std::cout << "cache "
+			<< cc_id << " got InvAck in state "
 			<< "state::IM_AD"
 			<< " need to wait for "
 			<< inv_needed
 			<< " sharers\n";
 	    }
+
+	    std::cout << ":::::GOT ACK FOR LINE "
+		      << (rsp_msg.addr / cl_len)
+		      << "\n";
+	      
 	    inv_recv++;
 	    break;
 	  default:
-	    std::cout << cc_id << " got other message...\n";
+	    std::cout << cc_id
+		      << " got other message...\n";
 	    break;
 	  }
 
@@ -229,31 +252,71 @@ void cache_controller::step() {
 	print_var(inv_recv);
 
 	if(fwd_network->peek_msg(fwd_msg)) {
-	  if(fwd_msg.msg_type == forward_message_type::Inv) {
-	    if(not(silent)) {
-	      std::cout << "cache " << cc_id << " got invalidate @ " << clock_cycle << "\n";
+	  std::cout << "-->cache " << cc_id << " got forwarded message of type "
+		    << fwd_msg.msg_type
+		    << " in SM_AD @ cycle "
+		    << clock_cycle
+		    << " for line "
+		    << (fwd_msg.addr / cl_len)
+		    << " while waiting for line "
+		    << curr_line
+		    << "\n";
+	  
+	  bool line_match = (fwd_msg.addr / cl_len)==curr_line;
+	  if(line_match) {
+	    if(fwd_msg.msg_type == forward_message_type::Inv) {
+	      curr_state = state::SM_AD_TO_IM_AD;
+	      fwd_network->pop_msg();
+	      break;
 	    }
+	  }
+	  else {
+	    post_fwd_state = state::SM_AD;
+	    curr_state = state::forward_0;
 	    fwd_network->pop_msg();
-	    curr_state = state::SM_AD_TO_IM_AD;
+	    break;
 	  }
 	}
-	if(not(rsp_network->peek_msg(rsp_msg)))
+	if(not(rsp_network->peek_msg(rsp_msg))) {
+	  std::cout << "NO RSP MESSAGES FOR " << cc_id << "\n";
 	  break;
-	switch(rsp_msg.msg_type)
-	  {
-	  case response_message_type::Data:
-	    rsp_network->pop_msg();
-	    inv_needed = rsp_msg.AckCount;
-	    copyLineData(curr_line, rsp_msg.data);
-	    break;
-	  case response_message_type::InvAck:
-	    inv_recv++;
-	    rsp_network->pop_msg();
-	    break;
-	  default:
-	    std::cout << cc_id << " got other message...\n";
-	    break;
-	  }
+	}
+
+	std::cout << "RSP MESSAGES FOR " << cc_id
+		  << " OF TYPE "
+		  << rsp_msg.msg_type
+		  << " FOR LINE "
+		  << (rsp_msg.addr/cl_len)
+		  << " FROM "
+		  << rsp_msg.fromActor
+		  << "\n";
+	
+	if((rsp_msg.addr/cl_len) == curr_line) {
+	  switch(rsp_msg.msg_type)
+	    {
+	    case response_message_type::Data:
+	      rsp_network->pop_msg();
+	      inv_needed = rsp_msg.AckCount;
+	      copyLineData(curr_line, rsp_msg.data);
+	      break;
+	    case response_message_type::InvAck:
+	      inv_recv++;
+	      std::cout << ":::::GOT ACK FOR LINE "
+			<< (rsp_msg.addr / cl_len)
+			<< " curr line " << curr_line
+			<< "\n";
+	      rsp_network->pop_msg();
+	      break;
+	    default:
+	      std::cout << cc_id << " got other message...\n";
+	      break;
+	    }
+	}
+	if(inv_needed != -1 ) {
+	  print_var(inv_recv);
+	  print_var(inv_needed);
+	  assert(inv_recv <= inv_needed);
+	}
 	if(inv_recv == inv_needed) {
 	  line_state[curr_line] = cc_state::M;
 	  curr_state = state::do_write;
@@ -277,11 +340,39 @@ void cache_controller::step() {
 	}
 	break;
       case state::IS_D: {
-	if(rsp_network->recv_msg(rsp_msg)) {
-	  assert(curr_line != -1);
-	  line_state[curr_line] = cc_state::S;
-	  copyLineData(curr_line, rsp_msg.data);
-	  curr_state = state::idle;
+	std::cout << "CACHE " << cc_id << " WAITING ON " << curr_line << "\n";
+	
+	if(fwd_network->peek_msg(fwd_msg)) {
+	  std::cout << "cc " << cc_id << " "
+		    << fwd_msg.msg_type << " to line "
+		    << fwd_msg.addr/cl_len
+		    << " curr line "
+		    << curr_line
+		    <<  "\n";
+	  
+	  if((fwd_msg.addr/cl_len) != curr_line) {
+	    std::cout << "-> " << cc_id
+		      << " processing forwarded message "
+		      << fwd_msg.msg_type
+		      << "\n";
+	    post_fwd_state = state::IS_D;
+	    curr_state = state::forward_0;
+	    fwd_network->pop_msg();
+	    break;
+	  }
+	}
+	if(rsp_network->peek_msg(rsp_msg)) {
+	  std::cout << "CACHE " << cc_id << " GOT_MESSAGE FOR LINE " << (rsp_msg.addr/cl_len)
+		    << " WAIT FOR " << curr_line
+		    << "\n";
+	  if((rsp_msg.addr / cl_len) == curr_line) {
+	    assert(curr_line != -1);
+	    line_state[curr_line] = cc_state::S;
+	    copyLineData(curr_line, rsp_msg.data);
+	    curr_state = state::idle;
+	    rsp_network->pop_msg();
+	    std::cout << "CACHE " << cc_id << " POPPED MESSAGE FOR LINE " << (rsp_msg.addr/cl_len) << "\n";
+	  }
 	}
 	break;
       }
@@ -388,7 +479,8 @@ void directory_controller::step() {
       case state::process_GetS_IS: {
 	sharers[curr_line][msg.reply_to] = true;
 	line_state[curr_line] = dc_state::S;
-	response_message rsp_msg(response_message_type::Data, 0);
+	response_message rsp_msg(response_message_type::Data, curr_line*cl_len, 0);
+	std::cout << "DIRECTORY REPLY (GetS_IS) TO " << msg.reply_to << " WITH DATA FOR LINE " << curr_line << " @ cycle " << clock_cycle << "\n";
 	rsp_msg.setData(cache_lines[curr_line]);
 	rsp_msg.fromActor = cc_id;
 	if(rsp_network->send_msg(msg.reply_to, rsp_msg)) {
@@ -402,6 +494,10 @@ void directory_controller::step() {
 	assert(owner_id >= 0);
 	forward_message fwd_msg(forward_message_type::FwdGetS, msg.reply_to, msg.addr);
 	if(fwd_network->send_msg(owner_id, fwd_msg)) {
+	  std::cout << "--> DIRECTORY WAITING ON " << owner_id
+		    << " for line "
+		    << (msg.addr / cl_len)
+		    << "\n";
 	  curr_state = state::process_GetS_M_WaitForData;
 	  sharers[curr_line][msg.reply_to] = true;
 	}
@@ -425,8 +521,10 @@ void directory_controller::step() {
 	if(sharers[curr_line][msg.reply_to]) {
 	  share_count--;
 	}
-	response_message rsp_msg(response_message_type::Data, share_count );
+	response_message rsp_msg(response_message_type::Data, curr_line*cl_len,
+				 share_count );
 	rsp_msg.setData(cache_lines[curr_line]);
+	std::cout << "DIRECTORY REPLY (GetM_S) TO " << msg.reply_to << " WITH DATA FOR LINE " << curr_line << " @ cycle " << clock_cycle << "\n";
 	if(rsp_network->send_msg(msg.reply_to, rsp_msg)) {
 	  curr_state = state::process_GetM_S_SendInv;
 	  sharers[curr_line][msg.reply_to] = true;
