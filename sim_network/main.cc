@@ -38,17 +38,15 @@ template<typename RT>
 void step_router(void *arg) {
   RT *router = reinterpret_cast<RT*>(arg);
   int r_id = router->get_id();
-  uint64_t n_msgs = 0;
   while(not(terminate_simulation)) {
     sent_messages += router->tick();
     gthread_yield();
   }
-  std::cout << "(termination) router " << r_id << ": n_msgs = "
-	    << n_msgs << " @ " << clock_cycle << "\n";
+  std::cout << "(termination) router " << r_id << " @ " << clock_cycle << "\n";
   gthread_terminate();
 }
 
-static const uint32_t n_caches = 2;
+static const uint32_t n_caches = 4;
 static const uint32_t n_routers = n_caches+1;
 
 extern "C" {
