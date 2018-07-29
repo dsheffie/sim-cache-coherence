@@ -39,6 +39,7 @@ void cache_controller::step() {
   forward_message fwd_msg;
   response_message rsp_msg;
   int inv_recv = 0, inv_needed = -1;
+  uint64_t last_idle = clock_cycle;
   while(not(terminate_simulation)) {
     /* can generate a new request */
     switch(curr_state)
@@ -49,12 +50,19 @@ void cache_controller::step() {
 	  post_fwd_state = state::idle;
 	}
 	else {
-	  curr_line = rand() & 1;
+	  curr_line = rand() & (num_lines-1);
 	  if(line_state[curr_line] == cc_state::I)
-	    curr_state = state::read;//((rand() % 4 == 0) and line_state[curr_line] != cc_state::I) ? state::write : state::read;
-	  else if(line_state[curr_line] == cc_state::S)
+	    curr_state = state::read;
+	  else if(line_state[curr_line] == cc_state::S and (rand()%4 == 0))
 	    curr_state = state::write;
+	  else
+	    curr_state = state::read;
 	}
+	uint64_t txn_latency = clock_cycle - last_idle;
+	if(txn_latency) {
+	  std::cout << "took " << txn_latency << " cycles to process txn for cache " << cc_id << "\n";
+	}
+	last_idle = clock_cycle;
 	break;
       }
       case state::forward_0: {
@@ -214,6 +222,13 @@ void cache_controller::step() {
 		      << curr_line
 		      << "\n";
 	  }
+	  bool line_match = (fwd_msg.addr / cl_len)==curr_line;
+	  if(not(line_match)) {
+	    post_fwd_state = state::IM_AD;
+	    curr_state = state::forward_0;
+	    fwd_network->pop_msg();
+	    break;
+	  }
 	}
 
 	
@@ -290,7 +305,7 @@ void cache_controller::step() {
 	}
 	if(not(rsp_network->peek_msg(rsp_msg))) {
 	  if(not(silent)) {
-	    std::cout << "NO RSP MESSAGES FOR " << cc_id << "\n";
+	    std::cout << "NO RSP MESSAGES FOR CACHE " << cc_id << "\n";
 	  }
 	  break;
 	}
@@ -358,7 +373,7 @@ void cache_controller::step() {
 	break;
       case state::IS_D: {
 	if(not(silent)) {
-	  std::cout << "CACHE " << cc_id << " WAITING ON " << curr_line << "\n";
+	  std::cout << "CACHE " << cc_id << " WAITING ON LINE " << curr_line << "\n";
 	}
 	
 	if(fwd_network->peek_msg(fwd_msg)) {
@@ -517,10 +532,12 @@ void directory_controller::step() {
 	assert(owner_id >= 0);
 	forward_message fwd_msg(forward_message_type::FwdGetS, msg.reply_to, msg.addr);
 	if(fwd_network->send_msg(owner_id, fwd_msg)) {
-	  //std::cout << "--> DIRECTORY WAITING ON " << owner_id
-	  //<< " for line "
-	  //<< (msg.addr / cl_len)
-	  //<< "\n";
+	  if(not(silent)) {
+	    std::cout << "--> DIRECTORY WAITING ON " << owner_id
+		      << " for line "
+		      << (msg.addr / cl_len)
+		      << "\n";
+	  }
 	  curr_state = state::process_GetS_M_WaitForData;
 	  sharers[curr_line][msg.reply_to] = true;
 	}

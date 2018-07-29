@@ -29,12 +29,12 @@ typedef router<response_message> response_router_t;
 
 static bool terminate_simulation = false;
 uint64_t clock_cycle = 0;
-static uint64_t max_cycles = 100;
+static uint64_t max_cycles = 1000;
 controller **controllers = nullptr;
 
 static int sent_messages = -1, streak = 0;
 
-static const uint32_t n_caches = 2;
+static const uint32_t n_caches = 16;
 static const uint32_t n_routers = n_caches+1;
 
 template<typename RT>
