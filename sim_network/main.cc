@@ -34,6 +34,9 @@ controller **controllers = nullptr;
 
 static int sent_messages = -1, streak = 0;
 
+static const uint32_t n_caches = 2;
+static const uint32_t n_routers = n_caches+1;
+
 template<typename RT>
 void step_router(void *arg) {
   RT *router = reinterpret_cast<RT*>(arg);
@@ -45,9 +48,6 @@ void step_router(void *arg) {
   std::cout << "(termination) router " << r_id << " @ " << clock_cycle << "\n";
   gthread_terminate();
 }
-
-static const uint32_t n_caches = 4;
-static const uint32_t n_routers = n_caches+1;
 
 extern "C" {
   void step_clock(void *arg) {

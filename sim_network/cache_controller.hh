@@ -22,7 +22,7 @@ public:
     terminate_simulation(terminate_simulation), cc_id(cc_id) {
     for(int i = 0; i < num_lines; i++) {
       for(int j = 0; j < cl_len; j++) {
-	cache_lines[i][j] = i;
+	cache_lines[i][j] = 0;
       }
     }
   }

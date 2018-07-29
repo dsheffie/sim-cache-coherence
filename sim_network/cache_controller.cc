@@ -6,7 +6,7 @@
 extern uint64_t clock_cycle;
 extern controller **controllers;
 
-static bool silent = true;
+static const bool silent = true;
 
 #define print_var(X) {							\
   if(not(silent)) {							\
@@ -167,10 +167,7 @@ void cache_controller::step() {
       case state::write: {
 	inv_recv = 0;
 	inv_needed = -1;
-#if 0
-	std::cout << "actor " << cc_id << " generated write, line state = "
-		  << line_state[curr_line] << " @ cycle " << clock_cycle << "\n";
-#endif
+
 	request_message msg(request_message_type::GetM, cc_id, curr_line*cl_len);
 	if(line_state[curr_line] == cc_state::I) {
 	  if(req_network->send_msg(directory_id, msg)) {
@@ -191,11 +188,12 @@ void cache_controller::step() {
       case state::do_write: {
 	int *ptr = reinterpret_cast<int*>(&cache_lines[curr_line]);
 	//print_var(*ptr);
-	std::cout << "actor " << cc_id << " generated write for line "
-		  << curr_line
-		  << " , line value = "
-		  << *ptr << " @ cycle " << clock_cycle << "\n";
-
+	if(not(silent)) {
+	  std::cout << "actor " << cc_id << " generated write for line "
+		    << curr_line
+		    << " , line value = "
+		    << *ptr << " @ cycle " << clock_cycle << "\n";
+	}
 	*ptr = *ptr + 1;
 	curr_state = state::idle;
 	break;
@@ -204,6 +202,21 @@ void cache_controller::step() {
 	print_var(inv_needed);
 	print_var(inv_recv);
 
+	if(fwd_network->peek_msg(fwd_msg)) {
+	  if(not(silent)) {
+	    std::cout << "-->cache " << cc_id << " got forwarded message of type "
+		      << fwd_msg.msg_type
+		      << " in IM_AD @ cycle "
+		      << clock_cycle
+		      << " for line "
+		      << (fwd_msg.addr / cl_len)
+		      << " while waiting for line "
+		      << curr_line
+		      << "\n";
+	  }
+	}
+
+	
 	if(not(rsp_network->recv_msg(rsp_msg)))
 	  break;
 	switch(rsp_msg.msg_type)
@@ -282,8 +295,8 @@ void cache_controller::step() {
 	  break;
 	}
 	if(not(silent)) {
-	  std::cout << "RSP MESSAGES FOR " << cc_id
-		    << " OF TYPE "
+	  std::cout << "cache " << cc_id
+		    << " GOT RSP MESSAGES OF TYPE "
 		    << rsp_msg.msg_type
 		  << " FOR LINE "
 		    << (rsp_msg.addr/cl_len)
@@ -329,6 +342,7 @@ void cache_controller::step() {
 	line_state[fwd_msg.addr >> lg2_num_lines] = cc_state::I;
 	rsp_msg.msg_type = response_message_type::InvAck;
 	rsp_msg.fromActor = cc_id;
+	rsp_msg.addr = fwd_msg.addr;
 	inv_recv = 0;
 	inv_needed = -1;
 	if(rsp_network->send_msg(fwd_msg.reply_to, rsp_msg)) {
