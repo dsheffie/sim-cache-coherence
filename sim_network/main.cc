@@ -34,7 +34,7 @@ controller **controllers = nullptr;
 
 static int sent_messages = -1, streak = 0;
 
-static const uint32_t n_caches = 16;
+static const uint32_t n_caches = 32;
 static const uint32_t n_routers = n_caches+1;
 
 template<typename RT>
