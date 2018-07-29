@@ -58,10 +58,12 @@ void cache_controller::step() {
 	  else
 	    curr_state = state::read;
 	}
+#if 0
 	uint64_t txn_latency = clock_cycle - last_idle;
 	if(txn_latency) {
 	  std::cout << "took " << txn_latency << " cycles to process txn for cache " << cc_id << "\n";
 	}
+#endif
 	last_idle = clock_cycle;
 	break;
       }

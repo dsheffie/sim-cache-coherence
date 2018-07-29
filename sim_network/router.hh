@@ -91,7 +91,7 @@ private:
     return false;
   }
 public:
-  router(router **routers, int router_id, int n_routers, int buflen = 16) :
+  router(router **routers, int router_id, int n_routers, int buflen = 64) :
     routers(routers), router_id(router_id),
     n_routers(n_routers), port_priority(0), credits(buflen/2) {
     for(int i = 0; i < n_ports; i++) {

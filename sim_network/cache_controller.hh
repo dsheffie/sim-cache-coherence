@@ -3,7 +3,7 @@
 
 #include "router.hh"
 #include "coherence.hh"
-#include <bitset>
+#include <boost/dynamic_bitset.hpp>
 
 class controller {
 protected:
@@ -62,10 +62,9 @@ public:
 
 class directory_controller : public controller {
 private:
-  static const int max_caches = 16;
   int n_caches = -1;
   dc_state line_state[num_lines];
-  std::bitset<max_caches> sharers[num_lines];
+  boost::dynamic_bitset<> sharers[num_lines];
   int find_first_shared(int line) const {
     return __builtin_ffs(sharers[line].to_ulong())-1;
   }
@@ -74,7 +73,7 @@ public:
     controller(terminate_simulation, cc_id), n_caches(n_caches) {
     for(int i = 0; i < num_lines; i++) {
       line_state[i] = dc_state::I;
-      sharers[i].reset();
+      sharers[i].resize(n_caches, false);
     }
   }
   dc_state get_line_state(int line) const {

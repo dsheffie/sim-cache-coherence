@@ -60,7 +60,7 @@ extern "C" {
 	streak = 0;
       }
       if(streak > (8*n_routers)) {
-	std::cout << "streak of " << streak << " cycles without progres\n";
+	std::cout << "streak of " << streak << " cycles without progress\n";
 	terminate_simulation = true;
       }
       if(clock_cycle > max_cycles) {
