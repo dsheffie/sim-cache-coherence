@@ -45,7 +45,7 @@ void step_router(void *arg) {
     sent_messages += router->tick();
     gthread_yield();
   }
-  std::cout << "(termination) router " << r_id << " @ " << clock_cycle << "\n";
+  //std::cout << "(termination) router " << r_id << " @ " << clock_cycle << "\n";
   gthread_terminate();
 }
 

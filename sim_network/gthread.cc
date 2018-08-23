@@ -17,7 +17,7 @@ std::list<gthread::gthread_ptr> gthread::threads;
 int64_t gthread::uuidcnt = 0;
 
 void start_gthreads()  {
-  assert(gthread::valid_head());
+  //assert(gthread::valid_head());
   curr_thread = gthread::head;
   curr_thread->status = gthread::thread_status::run;
   uint8_t *nstack = curr_thread->stack_ptr;
@@ -31,7 +31,7 @@ void gthread_yield() {
   gthread::gthread_ptr curr = curr_thread;
   curr->status = gthread::thread_status::ready;
   gthread::gthread_ptr next = curr->get_next();
-  assert(next);
+  //assert(next);
   bool need_init = (next->status == gthread::thread_status::uninitialized);
   curr_thread = next;
   curr_thread->status = gthread::thread_status::run;
@@ -54,7 +54,7 @@ void gthread_terminate() {
     stop_gthread_asm();
     return;
   }
-  assert(next);
+  //assert(next);
   bool need_init = (next->status == gthread::thread_status::uninitialized);
   curr_thread = next;
   curr_thread->status = gthread::thread_status::run;
