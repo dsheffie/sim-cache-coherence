@@ -6,8 +6,15 @@
 #include <cstdint>
 #include <cstring>
 
-static const int cl_len = 16;
-static const int lg2_num_lines = 4;
+template <typename T>
+static constexpr T constexpr_log2(T x) {
+  return (x<=1) ? 0 : 1+constexpr_log2(x/2);
+}
+
+static const int cl_len = 1024;
+static const int lg2_num_lines = constexpr_log2(cl_len);
+
+static_assert((1<<lg2_num_lines)==cl_len, "you done screwed up");
 
 #define ENUM_LIST_ENTRY(X) X,
 
